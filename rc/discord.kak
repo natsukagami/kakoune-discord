@@ -7,11 +7,11 @@ define-command -hidden discord-fifo-send -params 1 %{ nop %sh{
 define-command discord-presence-enable \
     -docstring "Enable Discord rich presence for this kakoune session" %{
     evaluate-commands %sh{
-        if [ -z "$kak_opt_discord_fifo" ] && [ "$(pidof Discord)" ]; then
+        if [ -z "$kak_opt_discord_fifo" ] && [ "$(pgrep Discord)" ]; then
             fifo=${TMPDIR:-/tmp}/kakoune-discord
             if [ ! -p "$fifo" ]; then
                 mkfifo "$fifo"
-                kakoune-discord "$fifo" >/dev/null 2>&1 </dev/null &
+                nix run . -- "$fifo" >/dev/null 2>&1 </dev/null &
             fi
             cat<<EOF
 set-option global discord_fifo $fifo

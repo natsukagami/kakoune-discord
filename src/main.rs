@@ -1,39 +1,42 @@
-extern crate discord_rpc_client;
+use discord_sdk::Discord;
+use log::info;
+use simple_logger::SimpleLogger;
+use std::{env, fs, time};
 
-use discord_rpc_client::Client;
-use std::{env, fs, process, time};
+const CLIENT_ID: i64 = 561241836451004449;
 
-const CLIENT_ID: u64 = 561241836451004449;
+#[tokio::main]
+async fn main() {
+    // Set up logger
+    SimpleLogger::new().init().unwrap();
 
-fn main() {
-    let filename = env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Expected a filename to read from.");
-        process::exit(1);
-    });
+    let filename = env::args()
+        .nth(1)
+        .expect("Expected a filename to read from.");
     let mut kak_count = 0;
-    let mut client = Client::new(CLIENT_ID);
-    client.start();
+
+    // Start a discord client
+    let client = Discord::new(
+        CLIENT_ID,
+        discord_sdk::Subscriptions::ACTIVITY,
+        Box::new(discord_sdk::handlers::Printer),
+    )
+    .expect("I should have a client");
 
     loop {
-        let info_bytes = fs::read(&filename).unwrap_or_else(|err| {
-            eprintln!("Something went wrong with reading the fifo: {}", err);
-            process::exit(1);
-        });
-        let info_raw = String::from_utf8(info_bytes).unwrap_or_else(|err| {
-            eprintln!("Something went wrong with parsing the bytes: {}", err);
-            process::exit(1);
-        });
+        let info_bytes = fs::read(&filename).expect("Something went wrong with reading the fifo");
+        let info_raw =
+            String::from_utf8(info_bytes).expect("Something went wrong with parsing the bytes");
         let info = info_raw.trim_end();
+
+        info!("Received from kak: {}", info);
 
         if info == "+" {
             kak_count += 1;
         } else if info == "-" {
             kak_count -= 1;
             if kak_count == 0 {
-                fs::remove_file(filename).unwrap_or_else(|err| {
-                    eprintln!("Something went wrong with removing the fifo: {}", err);
-                    process::exit(1);
-                });
+                fs::remove_file(filename).expect("Something went wrong with removing the fifo");
                 break;
             }
         } else {
@@ -41,13 +44,18 @@ fn main() {
             let epoc_secs = now
                 .duration_since(time::UNIX_EPOCH)
                 .expect("Epoch is after now?")
-                .as_secs();
+                .as_secs() as i64;
             client
-                .set_activity(|act| {
-                    act.details(format!("Editing {}", info.replace("'", "")))
-                        .timestamps(|timestamp| timestamp.start(epoc_secs))
-                        .assets(|ass| ass.large_image("default"))
-                })
+                .update_activity(
+                    discord_sdk::activity::ActivityBuilder::new()
+                        .details(format!("Editing {}", info.replace("'", "")))
+                        .start_timestamp(epoc_secs)
+                        .assets(
+                            discord_sdk::activity::Assets::default()
+                                .large("default", None as Option<String>),
+                        ),
+                )
+                .await
                 .expect("Failed to set activity");
         }
     }

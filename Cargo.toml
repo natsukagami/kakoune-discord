@@ -1,8 +1,12 @@
 [package]
 name = "kakoune-discord"
-version = "2.1.1"
-authors = ["ABuffSeagull <reecevanatta@gmail.com>"]
+version = "3.0.0"
+authors = ["ABuffSeagull <reecevanatta@gmail.com>", "Natsu Kagami <natsukagami@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-discord-rpc-client = "0.3.0"
+discord-sdk = "0.3.0"
+tracing = { version = "0.1", features = [ "log-always" ] }
+tokio = { version = "1", features = ["full"] }
+simple_logger = "2"
+log = "0.4"
