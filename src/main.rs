@@ -1,7 +1,11 @@
 use discord_sdk::Discord;
-use log::info;
+use log::{error, info};
 use simple_logger::SimpleLogger;
-use std::{env, fs, time};
+use std::{env, time};
+use tokio::{
+    fs::File,
+    io::{AsyncBufReadExt, BufReader},
+};
 
 const CLIENT_ID: i64 = 561241836451004449;
 
@@ -13,21 +17,45 @@ async fn main() {
     let filename = env::args()
         .nth(1)
         .expect("Expected a filename to read from.");
+
+    let file = File::open(&filename)
+        .await
+        .expect("Should be able to open fifo file");
+    let file = BufReader::new(file);
+
     let mut kak_count = 0;
 
     // Start a discord client
+    let (wheel, handler) = discord_sdk::wheel::Wheel::new(Box::new(|err| {
+        error!("encountered an error: {}", err);
+    }));
+
+    let mut user = wheel.user();
     let client = Discord::new(
         CLIENT_ID,
         discord_sdk::Subscriptions::ACTIVITY,
-        Box::new(discord_sdk::handlers::Printer),
+        Box::new(handler),
     )
     .expect("I should have a client");
+    info!("waiting for handshake...");
+    user.0.changed().await.unwrap();
 
+    let user = match &*user.0.borrow() {
+        discord_sdk::wheel::UserState::Connected(user) => user.clone(),
+        discord_sdk::wheel::UserState::Disconnected(err) => {
+            panic!("failed to connect to Discord: {}", err)
+        }
+    };
+
+    info!("connected to Discord, local user is {:#?}", user);
+
+    let mut lines = file.lines();
     loop {
-        let info_bytes = fs::read(&filename).expect("Something went wrong with reading the fifo");
-        let info_raw =
-            String::from_utf8(info_bytes).expect("Something went wrong with parsing the bytes");
-        let info = info_raw.trim_end();
+        let info = match lines.next_line().await.expect("Cannot read from file") {
+            Some(v) => v,
+            None => break,
+        };
+        let info = info.trim_end().to_owned();
 
         info!("Received from kak: {}", info);
 
@@ -36,7 +64,6 @@ async fn main() {
         } else if info == "-" {
             kak_count -= 1;
             if kak_count == 0 {
-                fs::remove_file(filename).expect("Something went wrong with removing the fifo");
                 break;
             }
         } else {
@@ -52,11 +79,12 @@ async fn main() {
                         .start_timestamp(epoc_secs)
                         .assets(
                             discord_sdk::activity::Assets::default()
-                                .large("default", None as Option<String>),
+                                .large("default", Option::<String>::None),
                         ),
                 )
                 .await
                 .expect("Failed to set activity");
         }
     }
+    std::fs::remove_file(filename).expect("Something went wrong with removing the fifo");
 }
