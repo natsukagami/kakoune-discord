@@ -1,4 +1,5 @@
 declare-option -hidden str discord_fifo
+declare-option -hidden str kakoune_discord_cmd "kakoune-discord"
 
 define-command -hidden discord-fifo-send -params 1 %{ nop %sh{
     { echo "$1" > "$kak_opt_discord_fifo"; } >/dev/null 2>&1 </dev/null &
@@ -11,7 +12,7 @@ define-command discord-presence-enable \
             fifo=${TMPDIR:-/tmp}/kakoune-discord
             if [ ! -p "$fifo" ]; then
                 mkfifo "$fifo"
-                nix run . -- "$fifo" >/dev/null 2>&1 </dev/null &
+                $kak_opt_kakoune_discord_cmd "$fifo" >/dev/null 2>&1 </dev/null &
             fi
             cat<<EOF
 set-option global discord_fifo $fifo

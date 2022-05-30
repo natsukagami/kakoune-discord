@@ -19,6 +19,11 @@
           pname = "kakoune-discord";
           root = ./.;
         };
+        packages.kakoune-discord-rc = pkgs.writeTextDir "rc/discord.kak" ''
+          ${builtins.readFile ./rc/discord.kak}
+          # Set a reference to the kakoune-discord package
+          set-option global kakoune_discord_cmd '${packages.kakoune-discord}/bin/kakoune-discord'
+        '';
         defaultPackage = packages.kakoune-discord;
 
         # `nix run`
