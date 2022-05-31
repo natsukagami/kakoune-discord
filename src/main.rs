@@ -9,6 +9,38 @@ use tokio::{
 
 const CLIENT_ID: i64 = 561241836451004449;
 
+type F = BufReader<File>;
+struct FifoReader {
+    filename: String,
+    lines: tokio::io::Lines<F>,
+}
+
+impl FifoReader {
+    async fn lines(filename: &str) -> tokio::io::Lines<F> {
+        let file = File::open(filename)
+            .await
+            .expect("Should be able to open fifo file");
+        let file = BufReader::new(file);
+        file.lines()
+    }
+
+    pub async fn new(filename: String) -> FifoReader {
+        let lines = Self::lines(&filename[..]).await;
+        Self { filename, lines }
+    }
+
+    #[async_recursion::async_recursion]
+    pub async fn next(&mut self) -> String {
+        match self.lines.next_line().await.expect("Cannot read line") {
+            Some(v) => v,
+            None => {
+                self.lines = Self::lines(self.filename.as_ref()).await;
+                self.next().await
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     // Set up logger
@@ -18,10 +50,7 @@ async fn main() {
         .nth(1)
         .expect("Expected a filename to read from.");
 
-    let file = File::open(&filename)
-        .await
-        .expect("Should be able to open fifo file");
-    let file = BufReader::new(file);
+    let mut file = FifoReader::new(filename.clone()).await;
 
     let mut kak_count = 0;
 
@@ -49,12 +78,8 @@ async fn main() {
 
     info!("connected to Discord, local user is {:#?}", user);
 
-    let mut lines = file.lines();
     loop {
-        let info = match lines.next_line().await.expect("Cannot read from file") {
-            Some(v) => v,
-            None => break,
-        };
+        let info = file.next().await;
         let info = info.trim_end().to_owned();
 
         info!("Received from kak: {}", info);

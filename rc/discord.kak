@@ -12,7 +12,7 @@ define-command discord-presence-enable \
             fifo=${TMPDIR:-/tmp}/kakoune-discord
             if [ ! -p "$fifo" ]; then
                 mkfifo "$fifo"
-                $kak_opt_kakoune_discord_cmd "$fifo" >/dev/null 2>&1 </dev/null &
+                exec $kak_opt_kakoune_discord_cmd "$fifo" >/dev/null 2>&1 </dev/null &
             fi
             cat<<EOF
 set-option global discord_fifo $fifo

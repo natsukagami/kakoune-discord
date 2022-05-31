@@ -10,3 +10,4 @@ tracing = { version = "0.1", features = [ "log-always" ] }
 tokio = { version = "1", features = ["full"] }
 simple_logger = "2"
 log = "0.4"
+async-recursion = "1"
